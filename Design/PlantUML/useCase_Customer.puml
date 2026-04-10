@@ -1,0 +1,82 @@
+@startuml UseCase_Customer  
+  
+left to right direction  
+  
+skinparam usecase {  
+    BackgroundColor White  
+    BorderColor Black  
+    FontSize 11  
+    ArrowColor DarkSlateGray  
+}  
+skinparam package {  
+    FontSize 12  
+    BackgroundColor WhiteSmoke  
+    BorderColor DarkGray  
+}  
+skinparam rectangle {  
+    FontSize 14  
+    FontStyle bold  
+}  
+skinparam nodesep 8  
+skinparam ranksep 15  
+skinparam actorStyle awesome  
+  
+actor "Customer" as C  
+actor "Notification\nService" as NS  
+  
+rectangle "Movie Ticket Booking System" {  
+  
+    package "Account" as PKG_ACC {  
+        usecase "Register" as UC_REG  
+        usecase "Login" as UC_LOGIN  
+        usecase "View Profile" as UC_PROF  
+    }  
+  
+    package "Movies & Booking" as PKG_BK {  
+        usecase "Browse / Search\nMovies" as UC_BROWSE  
+        usecase "View Showtimes" as UC_ST  
+        usecase "View Available\nSeats" as UC_SEATS  
+        usecase "Book Tickets" as UC_BOOK  
+        usecase "View My\nBookings" as UC_MYBK  
+        usecase "Cancel Booking" as UC_CANCEL  
+    }  
+  
+    package "Payment" as PKG_PAY {  
+        usecase "Pay for Booking" as UC_PAY  
+        usecase "Manage Payment\nCards" as UC_CARDS  
+    }  
+  
+    usecase "Receive\nNotification" as UC_NOTIF  
+  
+}  
+  
+' ── Customer → Use Cases ──  
+  
+C --> UC_REG  
+C --> UC_LOGIN  
+C --> UC_PROF  
+  
+C --> UC_BROWSE  
+C --> UC_ST  
+C --> UC_SEATS  
+C --> UC_BOOK  
+C --> UC_MYBK  
+C --> UC_CANCEL  
+  
+C --> UC_PAY  
+C --> UC_CARDS  
+  
+' ── Include relationships ──  
+  
+UC_BOOK ..> UC_SEATS : <<include>>  
+  
+' ── Extend relationships ──  
+  
+UC_BOOK <.. UC_NOTIF : <<extend>>\nticket confirmation  
+UC_PAY <.. UC_NOTIF : <<extend>>\ninvoice  
+  
+' ── Notification Service (secondary actor) ──  
+  
+UC_NOTIF <-- NS  
+  
+@enduml

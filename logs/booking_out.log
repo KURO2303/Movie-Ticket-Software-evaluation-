@@ -1,0 +1,8 @@
+Booking Service running on port 5002...
+ * Serving Flask app 'app'
+ * Debug mode: on
+Booking Service running on port 5002...
+[RabbitMQ] Sent ticket event for Booking #1
+[RabbitMQ] Sent ticket event for Booking #2
+[RabbitMQ] Sent ticket event for Booking #3
+[RabbitMQ] Sent ticket event for Booking #4

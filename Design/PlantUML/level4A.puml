@@ -1,0 +1,104 @@
+@startuml C4_Level4_Code_PartA  
+  
+skinparam classAttributeIconSize 0  
+skinparam packageStyle rectangle  
+skinparam linetype ortho  
+skinparam nodesep 60  
+skinparam ranksep 40  
+  
+title Code Level Diagram (Part A) — Movie Service Classes\nsrc/movie/  
+  
+package "Movie Service" <<Rectangle>> {  
+  
+    class Movie <<Domain Model>> {  
+        + id : int  
+        + title : str  
+        + genre : str  
+        + duration : int  
+        + release_date : str  
+        + image_url : str | None  
+        + description : str | None  
+        --  
+        + to_dict() : dict  
+    }  
+  
+    class Showtime <<Domain Model>> {  
+        + id : int  
+        + movie_id : int  
+        + room_id : int | None  
+        + start_time : str  
+        + end_time : str  
+        + price : int  
+        --  
+        + to_dict() : dict  
+    }  
+  
+    class MovieRepository <<Persistence>> {  
+        - db_path : str  
+        --  
+        - _get_connection() : Connection  
+        - _init_db() : void  
+        ..Rooms..  
+        + get_all_rooms() : list[dict]  
+        + get_room(room_id) : dict | None  
+        ..Movies..  
+        + add_movie(id, title, genre, duration, release_date, image_url, description) : int  
+        + get_movie(movie_id) : Movie | None  
+        + get_all_movies() : list[Movie]  
+        + search_movies(query) : list[Movie]  
+        + update_movie(movie_id, ...) : void  
+        + delete_movie(movie_id) : bool  
+        ..Showtimes..  
+        + add_showtime(id, movie_id, start_time, end_time, price, room_id) : int  
+        + get_showtime(showtime_id) : Showtime | None  
+        + get_all_showtimes(movie_id) : list[Showtime]  
+        + update_showtime(showtime_id, ...) : void  
+        + delete_showtime(showtime_id) : bool  
+        + delete_showtimes_by_movie_id(movie_id) : void  
+    }  
+  
+    class MovieService <<Business Logic>> {  
+        - movie_repo : MovieRepository  
+        - BOOKING_SERVICE_URL : str  
+        - RABBITMQ_HOST : str  
+        - RABBITMQ_URL : str | None  
+        --  
+        + validate_showtime_duration(movie_id, start_time, end_time) : Movie  
+        + send_notification_events(messages: list) : void  
+        + process_refund_and_cancel(showtime_id, reason) : int  
+        ..Movies..  
+        + add_movie(...) : dict  
+        + get_all_movies() : list[dict]  
+        + search_movies(query) : list[dict]  
+        + get_movie_by_id(movie_id) : dict | None  
+        + update_movie(movie_id, ...) : dict  
+        + delete_movie(movie_id) : dict  
+        ..Rooms..  
+        + get_all_rooms() : list[dict]  
+        + get_room_by_id(room_id) : dict | None  
+        ..Showtimes..  
+        + get_all_showtimes(movie_id) : list[dict]  
+        + get_showtime(showtime_id) : dict | None  
+        + add_showtime(...) : dict  
+        + update_showtime(...) : dict  
+        + delete_showtime(showtime_id) : dict  
+    }  
+  
+    MovieService --> MovieRepository : uses  
+    MovieRepository ..> Movie : creates / returns  
+    MovieRepository ..> Showtime : creates / returns  
+}  
+  
+note bottom of MovieService  
+  **Key Behaviors:**  
+  • validate_showtime_duration checks  
+    (end - start) >= movie.duration  
+  • delete_movie cascades: cancels all  
+    showtime bookings via Booking Service,  
+    sends REFUND_NOTIFICATION via RabbitMQ,  
+    then deletes showtimes + movie  
+  • update_showtime: if price or room  
+    changed → refund & cancel existing bookings  
+end note  
+  
+@enduml

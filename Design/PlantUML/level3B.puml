@@ -1,0 +1,48 @@
+@startuml C4_Level3_Payment_User  
+  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml  
+  
+title Component Diagram - Payment Service & User Service  
+  
+Container_Ext(gateway, "API Gateway", "Flask :5005", "Routes and authenticates requests")  
+Container_Ext(booking_svc, "Booking Service", "Flask :5002", "Manages bookings & seats")  
+System_Ext(rabbitmq, "RabbitMQ", "Message Broker")  
+ContainerDb_Ext(payments_db, "Payments DB", "SQLite (payments.db)")  
+ContainerDb_Ext(users_db, "Users DB", "SQLite (users.db)")  
+  
+System_Boundary(payment_boundary, "Payment Service :5003") {  
+    Component(pay_controller, "Payment Controller", "Flask routes (app.py)", "REST endpoints:\nPOST /api/payments\nGET/POST /api/payment-methods\nPUT/DELETE /api/payment-methods/<id>")  
+    Component(card_repo, "Card Repository", "Inline DB logic (app.py)", "CRUD for 'cards' table.\nColumns: id, user_email, card_number_masked, card_holder, created_at.\nOwnership check via user_email on every operation.")  
+    Component(payment_processor, "Payment Processor", "process_payment() in app.py", "Fetches booking details from Booking Service.\nValidates amount & email.\nUpdates booking status to 'confirmed'.\nTriggers invoice event.")  
+    Component(invoice_publisher, "Invoice Event Publisher", "send_invoice_event() in app.py", "Publishes INVOICE_PRINT event to 'invoice_events' queue with customer, amount, booking_id, date.")  
+}  
+  
+System_Boundary(user_boundary, "User Service :5004") {  
+    Component(auth_controller, "Auth Controller", "Flask routes (app.py)", "POST /api/auth/register\nPOST /api/auth/login\nGET /api/auth/verify")  
+    Component(user_controller, "User Controller", "Flask routes (app.py)", "GET /api/users/me\nGET /api/users\nGET /api/users/<id>\nPUT /api/users/<id>")  
+    Component(token_manager, "Token Manager", "UUID token logic (app.py)", "Generates UUID tokens on login.\nStores in 'tokens' table (token, email, role).\nVerifies tokens via DB lookup.")  
+    Component(user_repo, "User Repository", "Inline DB logic (app.py)", "CRUD for 'users' table.\nColumns: id, email, password (hashed), role.\nPassword hashing via werkzeug.\nAuto-migration: adds 'role' column.\nSeeds default admin (admin@system.com).")  
+}  
+  
+' --- Payment Service relationships ---  
+Rel(gateway, pay_controller, "HTTP requests", "JSON + X-User-Email header")  
+Rel(pay_controller, card_repo, "Calls for card CRUD")  
+Rel(pay_controller, payment_processor, "Delegates POST /api/payments")  
+Rel(card_repo, payments_db, "Reads/Writes", "SQLite")  
+Rel(payment_processor, booking_svc, "GET /api/bookings/<id>\nPUT /api/bookings/<id>/status", "HTTP")  
+Rel(payment_processor, invoice_publisher, "Calls after successful payment")  
+Rel(invoice_publisher, rabbitmq, "Publishes INVOICE_PRINT", "AMQP queue: invoice_events")  
+  
+' --- User Service relationships ---  
+Rel(gateway, auth_controller, "POST /api/auth/login\nPOST /api/auth/register", "JSON")  
+Rel(gateway, user_controller, "GET/PUT /api/users/*", "JSON + Bearer token")  
+Rel(auth_controller, token_manager, "Creates & verifies tokens")  
+Rel(auth_controller, user_repo, "Queries user credentials")  
+Rel(user_controller, user_repo, "Reads/Updates user data")  
+Rel(token_manager, users_db, "Reads/Writes tokens table", "SQLite")  
+Rel(user_repo, users_db, "Reads/Writes users table", "SQLite")  
+  
+' --- Cross-service: Gateway verifies tokens via User Service ---  
+Rel(gateway, auth_controller, "GET /api/auth/verify?token=...", "HTTP (internal)")  
+  
+@enduml

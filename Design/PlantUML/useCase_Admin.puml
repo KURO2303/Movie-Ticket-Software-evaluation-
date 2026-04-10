@@ -1,0 +1,83 @@
+@startuml UseCase_Admin  
+  
+left to right direction  
+  
+skinparam usecase {  
+    BackgroundColor White  
+    BorderColor Black  
+    FontSize 11  
+    ArrowColor DarkSlateGray  
+}  
+skinparam package {  
+    FontSize 12  
+    BackgroundColor WhiteSmoke  
+    BorderColor DarkGray  
+}  
+skinparam rectangle {  
+    FontSize 14  
+    FontStyle bold  
+}  
+skinparam nodesep 8  
+skinparam ranksep 15  
+skinparam actorStyle awesome  
+  
+title Use Case Diagram — Admin  
+  
+actor "Admin" as A  
+actor "Notification\nService" as NS  
+  
+rectangle "Movie Ticket Booking System" {  
+  
+    package "Movie & Showtime\nManagement" as PKG_MS {  
+        usecase "Create Movie" as UC_ADD_M  
+        usecase "Update Movie" as UC_UPD_M  
+        usecase "Delete Movie" as UC_DEL_M  
+        usecase "Upload Poster" as UC_UPLOAD  
+        usecase "Create Showtime" as UC_ADD_ST  
+        usecase "Update Showtime" as UC_UPD_ST  
+        usecase "Delete Showtime" as UC_DEL_ST  
+    }  
+  
+    package "Booking & User\nManagement" as PKG_BU {  
+        usecase "View All Bookings" as UC_VIEW_BK  
+        usecase "Delete Booking" as UC_DEL_BK  
+        usecase "View All Users" as UC_VIEW_U  
+        usecase "Update User\nRole / Password" as UC_UPD_U  
+    }  
+  
+    usecase "Cancel Bookings\n& Refund" as UC_REFUND  
+    usecase "Notify Affected\nCustomers" as UC_NOTIFY  
+  
+}  
+  
+' ── Admin → Use Cases ──  
+  
+A --> UC_ADD_M  
+A --> UC_UPD_M  
+A --> UC_DEL_M  
+A --> UC_UPLOAD  
+A --> UC_ADD_ST  
+A --> UC_UPD_ST  
+A --> UC_DEL_ST  
+  
+A --> UC_VIEW_BK  
+A --> UC_DEL_BK  
+A --> UC_VIEW_U  
+A --> UC_UPD_U  
+  
+' ── Include relationships ──  
+  
+UC_DEL_M ..> UC_REFUND : <<include>>  
+UC_DEL_ST ..> UC_REFUND : <<include>>  
+  
+' ── Extend relationships ──  
+  
+UC_UPD_ST <.. UC_REFUND : <<extend>>\nprice/room changed  
+UC_UPD_ST <.. UC_NOTIFY : <<extend>>\ntime changed  
+  
+' ── Notification Service (secondary actor) ──  
+  
+UC_REFUND <-- NS  
+UC_NOTIFY <-- NS  
+  
+@enduml

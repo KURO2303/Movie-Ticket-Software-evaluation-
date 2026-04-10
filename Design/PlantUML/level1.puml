@@ -1,0 +1,20 @@
+@startuml C4_Level1_SystemContext  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml  
+  
+title System Context Diagram - Movie Ticket Booking System  
+  
+Person(customer, "Customer", "Browses movies, books tickets, makes payments.")  
+Person(admin, "Admin", "Manages movies, showtimes, rooms, and users.")  
+  
+System(system, "Movie Ticket Booking System", "Allows customers to browse movies, book seats, pay for tickets, and receive email notifications.")  
+  
+System_Ext(rabbitmq, "RabbitMQ", "Message broker for async event processing.")  
+System_Ext(email, "Email System", "Sends ticket confirmations, invoices, and alerts to customers.")  
+  
+Rel(customer, system, "Browses movies, books tickets, pays", "HTTPS")  
+Rel(admin, system, "Manages movies, showtimes, users", "HTTPS")  
+Rel(system, rabbitmq, "Publishes events", "AMQP")  
+Rel(rabbitmq, system, "Delivers events to Notification consumer", "AMQP")  
+Rel(system, email, "Sends emails via Notification Service", "SMTP (simulated)")  
+  
+@enduml

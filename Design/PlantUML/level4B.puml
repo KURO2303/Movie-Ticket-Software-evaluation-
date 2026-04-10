@@ -1,0 +1,83 @@
+@startuml C4_Level4_Code_PartB  
+  
+skinparam classAttributeIconSize 0  
+skinparam packageStyle rectangle  
+skinparam linetype ortho  
+skinparam nodesep 60  
+skinparam ranksep 40  
+  
+title Code Level Diagram (Part B) — Booking Service Classes\nsrc/booking/  
+  
+package "Booking Service" <<Rectangle>> {  
+  
+    class Seat <<Domain Model>> {  
+        + id : int  
+        + showtime_id : int  
+        + seat_number : str  
+        + status : str = "available"  
+        --  
+        + to_dict() : dict  
+    }  
+  
+    class BookingRepository <<Persistence>> {  
+        - db_path : str  
+        - db_folder : str  
+        --  
+        - _get_connection() : Connection  
+        + init_db() : void  
+        ..Seat Queries..  
+        + is_seat_available(showtime_id, seat_number) : bool  
+        + get_seat_details(showtime_id, seat_number) : dict | None  
+        + get_seats_by_showtime(showtime_id) : list[dict]  
+        + get_seats_by_showtime_realistic(showtime_id, rows_count, seats_per_row) : list[dict]  
+        + create_seats(showtime_id, total_seats) : void  
+        + create_seats_realistic(showtime_id, rows_count, seats_per_row) : void  
+        ..Booking CRUD..  
+        + create_booking(showtime_id, seat_numbers, email, amount) : int  
+        + get_booking(booking_id) : dict | None  
+        + update_booking_status(booking_id, status) : bool  
+        + delete_booking(booking_id) : void  
+        + get_all_bookings() : list[dict]  
+        + get_bookings_by_customer(email) : list[dict]  
+        ..Bulk Operations..  
+        + get_affected_customers(showtime_id) : list[dict]  
+        + delete_all_bookings_by_showtime(showtime_id) : list[dict]  
+    }  
+  
+    class BookingService <<Business Logic>> {  
+        - booking_repo : BookingRepository  
+        - MOVIE_SERVICE_URL : str  
+        - RABBITMQ_HOST : str  
+        - RABBITMQ_URL : str | None  
+        --  
+        + send_ticket_email(booking_id, email, seat_number, movie_title) : void  
+        + book_ticket(showtime_id, seat_numbers, email) : dict  
+        + cancel_all_bookings_for_showtime(showtime_id) : list  
+        + create_seats(showtime_id, rows_count, seats_per_row) : void  
+        + get_seats(showtime_id) : list[dict]  
+        + get_all_bookings() : list[dict]  
+        + get_my_bookings(email) : list[dict]  
+        + get_booking_details(booking_id) : dict | None  
+        + update_booking_status(booking_id, status) : bool  
+        + delete_booking(booking_id) : void  
+        + get_affected_customers(showtime_id) : list[dict]  
+    }  
+  
+    BookingService --> BookingRepository : uses  
+    BookingRepository ..> Seat : creates / returns  
+}  
+  
+note bottom of BookingService  
+  **Key Behaviors:**  
+  • book_ticket: checks all seats available,  
+    fetches price from Movie Service,  
+    adds surcharge per seat type (VIP +20k, COUPLE +50k),  
+    creates ONE booking for all seats,  
+    publishes OrderPlacedEvent to RabbitMQ  
+  • create_booking uses atomic UPDATE  
+    with rollback if any seat unavailable  
+  • get_seats lazy-initializes seats from  
+    room layout (rows × seats_per_row)  
+end note  
+  
+@enduml

@@ -1,0 +1,82 @@
+@startuml C4_Level3_Frontend  
+  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml  
+  
+title Component Diagram - Frontend Application (Vanilla JS SPA)  
+  
+Person(customer, "Customer", "Browses movies, books tickets, pays")  
+Person(admin, "Admin", "Manages movies, showtimes, bookings, users")  
+Container_Ext(gateway, "API Gateway", "Flask :5005", "Routes & authenticates all API requests")  
+  
+System_Boundary(frontend_boundary, "Frontend SPA :5173 (Vite)") {  
+  
+    Component(router, "Router", "main.js", "Client-side router using History API.\nparseUrl() splits path into resource/id/verb.\nRoute table maps 15 paths to page modules.\nAdmin route protection: checks localStorage user.role === 'admin'.\nRenders Header for customer pages, hides for admin pages.")  
+  
+    Component(api_client, "API Client", "api/apiClient.js", "Centralized HTTP client.\nBase URL: API_GATEWAY_URL (port 5005).\nAuto-attaches peko-key, Bearer token, X-User-Email headers from localStorage.\nHandles 401 -> auto-logout & redirect.\nExports: loginUser, registerUser, getMovies, getMovieById, getShowtimes, getShowtimeSeats, getRooms, bookTicket, getMyBookings, processPayment, deleteBooking, getPaymentMethods, savePaymentMethod, deletePaymentMethod, uploadMoviePoster, createMovie, updateMovie, deleteMovie, createShowtime, updateShowtime, deleteShowtime, getAllBookings, getAllUsers, updateUser, getUserProfile.")  
+  
+    Component(header, "Header Component", "components/Header.js", "Top navbar: brand, Home, Movies links.\nConditional: 'My Tickets' for customers, 'Admin' link for admins.\nLogin/Register buttons when unauthenticated.\nLogout button clears localStorage.")  
+  
+    Component(admin_sidebar, "Admin Sidebar", "components/AdminSidebar.js", "Vertical nav for admin area.\nLinks: Dashboard, Manage Movies, Manage Showtimes, Manage Bookings, Manage Users.\nHighlights active page.\nLogout with confirmation dialog.")  
+  
+    Component(home_page, "HomePage", "pages/HomePage.js", "Landing page with featured movies")  
+    Component(movies_page, "MoviesPage", "pages/MoviesPage.js", "Movie listing with search query support")  
+    Component(movie_details, "MovieDetailsPage", "pages/MovieDetailsPage.js", "Movie info + showtime list for a single movie")  
+    Component(bookings_page, "BookingsPage", "pages/BookingsPage.js", "Seat selection UI for a given showtime.\nFetches seats via getShowtimeSeats().\nSupports STANDARD, VIP, COUPLE seat types.\nSubmits grouped booking via bookTicket().")  
+    Component(my_bookings, "MyBookingsPage", "pages/MyBookingsPage.js", "Lists user's bookings via getMyBookings().\nCancel booking via deleteBooking().")  
+    Component(payment_page, "PaymentPage", "pages/PaymentPage.js", "Payment form.\nSaved cards via getPaymentMethods().\nProcess via processPayment().\nAdd/delete cards via savePaymentMethod()/deletePaymentMethod().")  
+    Component(profile_page, "ProfilePage", "pages/ProfilePage.js", "User profile info via getUserProfile()")  
+    Component(login_page, "LoginPage", "pages/LoginPage.js", "Customer login form -> loginUser()")  
+    Component(register_page, "RegisterPage", "pages/RegisterPage.js", "Registration form -> registerUser()")  
+  
+    Component(admin_login, "AdminLoginPage", "pages/AdminLoginPage.js", "Admin login form -> loginUser()")  
+    Component(admin_dashboard, "AdminDashboardPage", "pages/AdminDashboardPage.js", "Overview stats dashboard")  
+    Component(admin_movies, "AdminMoviesPage", "pages/AdminMoviesPage.js", "CRUD movies: list, create, update, delete.\nPoster upload via uploadMoviePoster().")  
+    Component(admin_showtimes, "AdminShowtimesPage", "pages/AdminShowtimesPage.js", "CRUD showtimes: create, update, delete.\nLinks to movies & rooms.")  
+    Component(admin_bookings, "AdminBookingsPage", "pages/AdminBookingsPage.js", "View all bookings via getAllBookings().\nCancel bookings.")  
+    Component(admin_users, "AdminUsersPage", "pages/AdminUsersPage.js", "View all users via getAllUsers().\nUpdate role/password via updateUser().")  
+}  
+  
+' --- External actors ---  
+Rel(customer, router, "Navigates to customer pages", "Browser")  
+Rel(admin, router, "Navigates to /admin/* pages", "Browser")  
+  
+' --- Router dispatches to components ---  
+Rel(router, header, "Renders on customer pages")  
+Rel(router, home_page, "Route: /")  
+Rel(router, movies_page, "Route: /movies")  
+Rel(router, movie_details, "Route: /movies/:id")  
+Rel(router, bookings_page, "Route: /book/:id")  
+Rel(router, my_bookings, "Route: /my-bookings")  
+Rel(router, payment_page, "Route: /payment")  
+Rel(router, profile_page, "Route: /profile")  
+Rel(router, login_page, "Route: /login")  
+Rel(router, register_page, "Route: /register")  
+Rel(router, admin_login, "Route: /admin/login")  
+Rel(router, admin_sidebar, "Rendered inside admin pages")  
+Rel(router, admin_dashboard, "Route: /admin/dashboard")  
+Rel(router, admin_movies, "Route: /admin/movies/manage")  
+Rel(router, admin_showtimes, "Route: /admin/showtimes/manage")  
+Rel(router, admin_bookings, "Route: /admin/bookings/manage")  
+Rel(router, admin_users, "Route: /admin/users/manage")  
+  
+' --- Pages use API Client ---  
+Rel(home_page, api_client, "getMovies()")  
+Rel(movies_page, api_client, "getMovies(query)")  
+Rel(movie_details, api_client, "getMovieById(), getShowtimes()")  
+Rel(bookings_page, api_client, "getShowtimeSeats(), getShowtimeDetail(), bookTicket()")  
+Rel(my_bookings, api_client, "getMyBookings(), deleteBooking()")  
+Rel(payment_page, api_client, "processPayment(), getPaymentMethods(), savePaymentMethod(), deletePaymentMethod()")  
+Rel(profile_page, api_client, "getUserProfile()")  
+Rel(login_page, api_client, "loginUser()")  
+Rel(register_page, api_client, "registerUser()")  
+Rel(admin_login, api_client, "loginUser()")  
+Rel(admin_dashboard, api_client, "getMovies(), getAllBookings(), getAllUsers()")  
+Rel(admin_movies, api_client, "getMovies(), createMovie(), updateMovie(), deleteMovie(), uploadMoviePoster()")  
+Rel(admin_showtimes, api_client, "getShowtimes(), createShowtime(), updateShowtime(), deleteShowtime(), getMovies(), getRooms()")  
+Rel(admin_bookings, api_client, "getAllBookings(), deleteBooking()")  
+Rel(admin_users, api_client, "getAllUsers(), updateUser()")  
+  
+' --- API Client to Gateway ---  
+Rel(api_client, gateway, "All HTTP calls", "JSON + peko-key + Bearer token")  
+  
+@enduml

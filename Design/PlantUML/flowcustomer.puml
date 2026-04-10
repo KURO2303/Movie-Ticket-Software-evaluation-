@@ -1,0 +1,92 @@
+@startuml Customer_Booking_Flow  
+  
+title Customer Journey - Choose Movie & Buy Ticket  
+  
+actor "Customer" as C  
+participant "Frontend SPA" as FE  
+participant "API Gateway" as GW  
+participant "Movie Service" as MS  
+participant "Booking Service" as BS  
+participant "Payment Service" as PS  
+participant "User Service" as US  
+queue "RabbitMQ" as MQ  
+  
+== Step 1: Browse Movies ==  
+  
+C -> FE : Browse /movies  
+FE -> GW : GET /api/movies  
+GW -> MS : GET /api/movies  
+MS --> GW : Movie list (JSON)  
+GW --> FE : Movie list  
+FE --> C : Display movie cards  
+  
+== Step 2: View Movie Details & Showtimes ==  
+  
+C -> FE : Click movie -> /movies/:id  
+FE -> GW : GET /api/movies/:id  
+FE -> GW : GET /api/showtimes?movie_id=X  
+FE -> GW : GET /api/rooms  
+GW -> MS : Forward all 3 requests  
+MS --> GW : Movie + Showtimes + Rooms  
+GW --> FE : Combined data  
+FE --> C : Show calendar with showtimes\n(date, time, room, price)  
+  
+== Step 3: Select Seats ==  
+  
+C -> FE : Pick showtime -> /book/:showtimeId  
+FE -> GW : GET /api/showtimes/:id/seats  
+GW -> BS : GET /api/showtimes/:id/seats  
+BS -> MS : GET /api/showtimes/:id (room_id)  
+MS --> BS : Showtime details  
+BS -> MS : GET /api/rooms/:room_id (rows, seats_per_row)  
+MS --> BS : Room layout  
+BS --> GW : Seat map (seat_number, status, type, surcharge)  
+GW --> FE : Seat map  
+FE --> C : Show seat grid\n(STANDARD / VIP +20k / COUPLE +50k)  
+  
+C -> FE : Click seats to select/deselect  
+FE --> C : Update sidebar: selected seats,\nrunning total (base_price + surcharge)  
+  
+== Step 4: Confirm Booking ==  
+  
+C -> FE : Click "Book Now"  
+FE -> GW : POST /api/bookings\n{showtime_id, seat_numbers: [...]}  
+GW -> US : GET /api/auth/verify?token=...  
+US --> GW : {valid: true, email, role}  
+GW -> BS : POST /api/bookings\n+ X-User-Email header  
+BS -> BS : Check seat availability for ALL seats  
+BS -> MS : GET /api/showtimes/:id (base price)  
+MS --> BS : Showtime price  
+BS -> MS : GET /api/movies/:movie_id (title)  
+MS --> BS : Movie title  
+BS -> BS : Calculate total = SUM(base_price + surcharge)\nCreate booking record\nReserve all seats atomically  
+BS -> MQ : Publish OrderPlacedEvent\n(queue: ticket_events)  
+BS --> GW : {booking_id, total_price, movie, seats}  
+GW --> FE : Booking response  
+FE --> C : Redirect to /payment?booking_id=X&amount=Y  
+  
+== Step 5: Payment ==  
+  
+C -> FE : /payment page loads  
+FE -> GW : GET /api/payment-methods  
+GW -> PS : Forward (+ X-User-Email)  
+PS --> GW : Saved cards list  
+GW --> FE : Cards  
+FE --> C : Show saved cards or\nprompt to add new card  
+  
+C -> FE : Click "Confirm Payment"  
+FE -> GW : POST /api/payments {booking_id}  
+GW -> US : Verify token  
+US --> GW : Valid  
+GW -> PS : POST /api/payments {booking_id}  
+PS -> BS : GET /api/bookings/:id  
+BS --> PS : {amount, customer_email}  
+PS -> PS : Validate amount & email  
+PS -> BS : PUT /api/bookings/:id/status\n{status: "confirmed"}  
+BS --> PS : OK  
+PS -> MQ : Publish INVOICE_PRINT\n(queue: invoice_events)  
+PS --> GW : {message: "Payment successful",\namount_paid, status: "PAID"}  
+GW --> FE : Payment success  
+FE --> C : Alert "Payment successful!"\nRedirect to /my-bookings  
+  
+@enduml

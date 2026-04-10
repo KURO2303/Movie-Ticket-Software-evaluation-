@@ -1,0 +1,46 @@
+@startuml C4_Level3_Component  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml  
+  
+title Component Diagram - Booking Service & Movie Service  
+  
+Container_Ext(gateway, "API Gateway", "Flask", "Routes and authenticates requests")  
+Container_Ext(payment_svc, "Payment Service", "Flask", "Processes payments")  
+Container_Ext(user_svc, "User Service", "Flask", "Auth & user management")  
+ContainerDb_Ext(booking_db, "Booking DB", "SQLite (booking.db)")  
+ContainerDb_Ext(movies_db, "Movies DB", "SQLite (movies.db)")  
+System_Ext(rabbitmq, "RabbitMQ", "Message Broker")  
+  
+System_Boundary(booking_boundary, "Booking Service") {  
+    Component(booking_controller, "Booking Controller", "Flask routes (app.py)", "REST API endpoints: POST /api/bookings, GET /api/bookings, GET /api/showtimes/<id>/seats, DELETE /api/bookings/<id>, etc.")  
+    Component(booking_service, "BookingService", "business_logic/booking_service.py", "Orchestrates booking logic: seat availability check, price calculation via Movie Service, grouped booking creation, RabbitMQ event publishing.")  
+    Component(booking_repo, "BookingRepository", "persistence/booking_repository.py", "Data access layer. CRUD for bookings and seats tables. Atomic seat reservation with rollback.")  
+    Component(booking_models, "Booking Models", "models/booking_models.py", "Domain model: Seat class (id, showtime_id, seat_number, status).")  
+}  
+  
+System_Boundary(movie_boundary, "Movie Service") {  
+    Component(movie_controller, "Movie Controller", "Flask routes (app.py)", "REST API endpoints: CRUD /api/movies, /api/showtimes, /api/rooms, /api/movies/upload.")  
+    Component(movie_service, "MovieService", "business_logic/movie_service.py", "Business logic: showtime duration validation, cascading delete with refund, RabbitMQ notifications for schedule changes.")  
+    Component(movie_repo, "MovieRepository", "persistence/movie_repository.py", "Data access layer. CRUD for movies, showtimes, and rooms tables.")  
+    Component(movie_models, "Movie Models", "models/movie_model.py", "Domain models: Movie class, Showtime class.")  
+}  
+  
+Rel(gateway, booking_controller, "HTTP requests", "JSON")  
+Rel(gateway, movie_controller, "HTTP requests", "JSON")  
+  
+Rel(booking_controller, booking_service, "Calls")  
+Rel(booking_service, booking_repo, "Calls")  
+Rel(booking_repo, booking_models, "Uses")  
+Rel(booking_repo, booking_db, "Reads/Writes", "SQLite")  
+Rel(booking_service, rabbitmq, "Publishes OrderPlacedEvent", "AMQP")  
+  
+Rel(movie_controller, movie_service, "Calls")  
+Rel(movie_service, movie_repo, "Calls")  
+Rel(movie_repo, movie_models, "Uses")  
+Rel(movie_repo, movies_db, "Reads/Writes", "SQLite")  
+Rel(movie_service, rabbitmq, "Publishes SHOWTIME_CHANGED / REFUND_NOTIFICATION", "AMQP")  
+  
+Rel(booking_service, movie_controller, "Fetches showtime price & movie title", "HTTP")  
+Rel(movie_service, booking_controller, "Cancels bookings on delete/update", "HTTP (internal)")  
+Rel(payment_svc, booking_controller, "Gets booking details, updates status", "HTTP")  
+  
+@enduml

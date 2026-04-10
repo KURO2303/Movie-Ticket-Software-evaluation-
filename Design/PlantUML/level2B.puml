@@ -1,0 +1,59 @@
+@startuml C4_Level2_Container_PartB  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml  
+  
+LAYOUT_WITH_LEGEND()  
+  
+skinparam wrapWidth 200  
+  
+title Container Diagram (Part B) — Inter-Service Communication & Async Messaging  
+  
+' ═══════════ Containers ═══════════  
+  
+' Row 1: Movie + Booking side by side (they communicate heavily)  
+Container(movie_svc, "Movie Service", "Python / Flask\nPort 5001", "CRUD for movies, rooms, showtimes.")  
+Container(booking_svc, "Booking Service", "Python / Flask\nPort 5002", "Seat reservation & booking lifecycle.")  
+  
+' Row 2: Payment + User  
+Container(payment_svc, "Payment Service", "Python / Flask\nPort 5003", "Payment processing & card management.")  
+Container(user_svc, "User Service", "Python / Flask\nPort 5004", "Auth & user management.\nToken verification for API Gateway.")  
+  
+' Row 3: Async  
+System_Ext(rabbitmq, "RabbitMQ", "AMQP message broker\namqp://admin:admin@rabbitmq")  
+Container(notification_svc, "Notification Service", "Python / Pika", "Consumes ticket_events,\ninvoice_events, and\nnotification_events queues.\nPrints email/invoice alerts.")  
+  
+' ═══════════ Layout Hints ═══════════  
+' Force 3-row layout: [Movie, Booking] → [Payment, User] → [RabbitMQ, Notification]  
+  
+Lay_R(movie_svc, booking_svc)  
+Lay_R(payment_svc, user_svc)  
+Lay_R(rabbitmq, notification_svc)  
+  
+Lay_D(movie_svc, payment_svc)  
+Lay_D(booking_svc, user_svc)  
+Lay_D(payment_svc, rabbitmq)  
+  
+' ═══════════ Synchronous Inter-Service HTTP ═══════════  
+  
+Rel_R(booking_svc, movie_svc, "GET showtime price,\nmovie title, room info", "HTTP :5001")  
+Rel_L(movie_svc, booking_svc, "DELETE cancel bookings\non showtime/movie delete", "HTTP :5002")  
+Rel_U(payment_svc, booking_svc, "GET booking details\nPUT status → confirmed", "HTTP :5002")  
+  
+' ═══════════ Async: Publish to RabbitMQ ═══════════  
+  
+Rel_D(booking_svc, rabbitmq, "Publish\nOrderPlacedEvent", "AMQP\nticket_events")  
+Rel_D(payment_svc, rabbitmq, "Publish\nINVOICE_PRINT", "AMQP\ninvoice_events")  
+Rel_D(movie_svc, rabbitmq, "Publish SHOWTIME_CHANGED\n& REFUND_NOTIFICATION", "AMQP\nnotification_events")  
+  
+' ═══════════ Async: Consume from RabbitMQ ═══════════  
+  
+Rel_R(rabbitmq, notification_svc, "Delivers events\nfrom all 3 queues", "AMQP")  
+  
+' ═══════════ Notes ═══════════  
+  
+note bottom of user_svc  
+  API Gateway (not shown here — see Part A)  
+  calls User Service to verify JWT tokens  
+  on every authenticated request.  
+end note  
+  
+@enduml

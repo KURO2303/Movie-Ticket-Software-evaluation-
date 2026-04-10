@@ -1,0 +1,203 @@
+@startuml C4_Level4_Code_PartC  
+  
+skinparam classAttributeIconSize 0  
+skinparam packageStyle rectangle  
+skinparam nodesep 50  
+skinparam ranksep 40  
+  
+title Code Level Diagram (Part C)\nPayment, User & Notification Services — Classes and Database Schemas  
+  
+  
+' ══════════════════════════════════════════════════  
+' ROW 1:  Payment Service  |  User Service  
+' ══════════════════════════════════════════════════  
+  
+package "Payment Service\n(src/payment)" as COL_PAY <<Rectangle>> {  
+  
+    class "PaymentController\n(app.py)" as PayCtrl <<Flask Routes>> {  
+        + process_payment(booking_id) : JSON  
+        + get_payment_methods() : JSON  
+        + add_payment_method(card_number, card_holder) : JSON  
+        + delete_payment_method(card_id) : JSON  
+        + update_payment_method(card_id, card_holder) : JSON  
+    }  
+  
+    class "send_invoice_event()" as InvHelper <<Helper Function>> {  
+        Publishes INVOICE_PRINT  
+        to invoice_events queue  
+    }  
+  
+    entity "cards" as cards_tbl <<payments.db>> {  
+        * id : INTEGER <<PK>>  
+        --  
+        user_email : TEXT  
+        card_number_masked : TEXT  
+        card_holder : TEXT  
+        created_at : TIMESTAMP  
+    }  
+  
+    PayCtrl --> InvHelper : on successful\npayment  
+    PayCtrl --> cards_tbl : CRUD  
+}  
+  
+package "User Service\n(src/user)" as COL_USER <<Rectangle>> {  
+  
+    class "UserController\n(app.py)" as UserCtrl <<Flask Routes>> {  
+        + register(email, password) : JSON  
+        + login(username/email, password) : JSON  
+        + verify_token(token) : JSON  
+        + get_me() : JSON  
+        + get_all_users() : JSON  
+        + get_user(user_id) : JSON  
+        + update_user(user_id, role?, password?) : JSON  
+    }  
+  
+    entity "users" as users_tbl <<users.db>> {  
+        * id : INTEGER <<PK>>  
+        --  
+        email : TEXT <<UNIQUE>>  
+        password : TEXT  
+        role : TEXT = "customer"  
+    }  
+  
+    entity "tokens" as tokens_tbl <<users.db>> {  
+        * token : TEXT <<PK>>  
+        --  
+        email : TEXT  
+        role : TEXT  
+        created_at : TIMESTAMP  
+    }  
+  
+    UserCtrl --> users_tbl : CRUD  
+    UserCtrl --> tokens_tbl : CRUD  
+    tokens_tbl }|--|| users_tbl : "email"  
+}  
+  
+' ── Row 1 side-by-side ──  
+COL_PAY -[hidden]right- COL_USER  
+  
+  
+' ══════════════════════════════════════════════════  
+' ROW 2:  Movie DB  |  Booking DB  |  Notification  
+' ══════════════════════════════════════════════════  
+  
+package "Movie DB — movies.db\n(see Part A for classes)" as REF_MOVIE <<Database>> {  
+  
+    entity "movies" as m_tbl {  
+        * id : INTEGER <<PK>>  
+        --  
+        title, genre, duration  
+        release_date  
+        image_url, description  
+    }  
+  
+    entity "rooms" as r_tbl {  
+        * id : INTEGER <<PK>>  
+        --  
+        name, rows, seats_per_row  
+    }  
+  
+    entity "showtimes" as st_tbl {  
+        * id : INTEGER <<PK>>  
+        --  
+        movie_id <<FK>>  
+        room_id <<FK>>  
+        start_time, end_time  
+        price  
+    }  
+  
+    st_tbl }|--|| m_tbl : "movie_id"  
+    st_tbl }|--o| r_tbl : "room_id"  
+}  
+  
+package "Booking DB — booking.db\n(see Part B for classes)" as REF_BOOK <<Database>> {  
+  
+    entity "bookings" as bk_tbl {  
+        * id : INTEGER <<PK>>  
+        --  
+        showtime_id  
+        seat_number  
+        customer_email  
+        amount, status  
+    }  
+  
+    entity "seats" as s_tbl {  
+        * id : INTEGER <<PK>>  
+        --  
+        showtime_id  
+        seat_number, status  
+        seat_type, price_surcharge  
+        <<UNIQUE(showtime_id, seat_number)>>  
+    }  
+}  
+  
+package "Notification Service\n(src/notification)" as COL_NOTIF <<Rectangle>> {  
+  
+    class "NotificationConsumer\n(app.py)" as NotifCon <<Pika Consumer>> {  
+        + connect_rabbitmq() : Connection  
+        + callback(ch, method, props, body) : void  
+        + start_consumer() : void  
+    }  
+  
+    note as N_QUEUES  
+        **Consumes 3 queues:**  
+        ticket_events  
+        invoice_events  
+        notification_events  
+    end note  
+  
+    NotifCon .. N_QUEUES  
+}  
+  
+' ── Row 2 side-by-side ──  
+REF_MOVIE -[hidden]right- REF_BOOK  
+REF_BOOK -[hidden]right- COL_NOTIF  
+  
+' ══════════════════════════════════════════════════  
+' CRITICAL: Force Row 2 BELOW Row 1  
+' Use element-to-element hidden links (NOT package-to-package)  
+' This creates actual Graphviz rank constraints  
+' ══════════════════════════════════════════════════  
+  
+InvHelper -[hidden]down-> m_tbl  
+cards_tbl -[hidden]down-> st_tbl  
+users_tbl -[hidden]down-> bk_tbl  
+tokens_tbl -[hidden]down-> NotifCon  
+  
+  
+' ══════════════════════════════════════════════════  
+' Cross-service and Cross-DB relationships  
+' ══════════════════════════════════════════════════  
+  
+cards_tbl ..> users_tbl : "user_email -> email"  
+bk_tbl ..> st_tbl : "showtime_id"  
+s_tbl ..> st_tbl : "showtime_id"  
+  
+  
+' ══════════════════════════════════════════════════  
+' Behavioral Notes  
+' ══════════════════════════════════════════════════  
+  
+note bottom of PayCtrl  
+  process_payment:  
+  1. GET booking (Booking Svc)  
+  2. PUT status -> confirmed  
+  3. Publish INVOICE_PRINT  
+  Cards masked: ************XXXX  
+end note  
+  
+note bottom of UserCtrl  
+  Passwords: werkzeug hash  
+  Tokens: UUID4  
+  Admin seeded: admin@system.com  
+end note  
+  
+note bottom of NotifCon  
+  Event types handled:  
+  OrderPlacedEvent  
+  INVOICE_PRINT  
+  SHOWTIME_CHANGED  
+  REFUND_NOTIFICATION  
+end note  
+  
+@enduml

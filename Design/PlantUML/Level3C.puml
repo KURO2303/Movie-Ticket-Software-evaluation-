@@ -1,0 +1,68 @@
+@startuml C4_Level3_Gateway_Notification  
+  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml  
+  
+title Component Diagram - API Gateway & Notification Service  
+  
+Person(customer, "Customer", "End user browsing movies & booking tickets")  
+Person(admin, "Admin", "Staff managing movies, showtimes, users")  
+Container_Ext(frontend, "Frontend SPA", "Vanilla JS + Vite :5173", "Single-page application")  
+Container_Ext(movie_svc, "Movie Service", "Flask :5001", "CRUD movies, showtimes, rooms")  
+Container_Ext(booking_svc, "Booking Service", "Flask :5002", "Seat reservations & bookings")  
+Container_Ext(payment_svc, "Payment Service", "Flask :5003", "Payments & saved cards")  
+Container_Ext(user_svc, "User Service", "Flask :5004", "Auth & user management")  
+System_Ext(rabbitmq, "RabbitMQ", "Message Broker")  
+  
+System_Boundary(gateway_boundary, "API Gateway :5005") {  
+    Component(api_key_guard, "API Key Guard", "before_request (app.py:22-32)", "Validates 'peko-key: BO_CHIKA' header on every request.\nBypasses for OPTIONS and /api/movies/posters/* (browser <img> tags).")  
+    Component(public_forwarder, "Public Forwarder", "public_forward() (app.py:35-44)", "Forwards unauthenticated GET requests directly to backend services.\nUsed for: GET /api/movies, GET /api/showtimes, GET /api/rooms, GET /api/users/me, poster proxy.")  
+    Component(auth_forwarder, "Auth & Role Forwarder", "validate_and_forward() (app.py:46-79)", "Extracts Bearer token from Authorization header.\nCalls User Service GET /api/auth/verify.\nInjects X-User-Email & X-User-Role headers.\nEnforces required_role (e.g., 'admin') -> 403 Forbidden.")  
+    Component(file_proxy, "File Upload Proxy", "movie_upload() (app.py:121-160)", "Special handler for multipart/form-data.\nManually verifies admin token.\nRe-packages request.files for forwarding to Movie Service /api/movies/upload.")  
+    Component(poster_proxy, "Poster Proxy", "movie_posters() (app.py:106-119)", "Streams movie poster images from Movie Service /static/<filename>.\nNo API key required (browser img tags).")  
+    Component(route_table, "Route Table", "Flask @app.route decorators (app.py:82-210)", "Maps paths to services:\n/api/auth/* -> User Svc (public)\n/api/movies/* -> Movie Svc (GET public, POST/PUT/DELETE admin)\n/api/showtimes/* -> Movie Svc (with seat redirect to Booking)\n/api/bookings/* -> Booking Svc (authenticated)\n/api/payments/* -> Payment Svc (authenticated)\n/api/payment-methods/* -> Payment Svc (authenticated)")  
+}  
+  
+System_Boundary(notif_boundary, "Notification Service (Consumer)") {  
+    Component(rmq_connector, "RabbitMQ Connector", "connect_rabbitmq() (app.py:12-29)", "Retry loop with 5s backoff.\nConnects via RABBITMQ_URL or amqp://admin:admin@host:5672.\nBlocking connection.")  
+    Component(queue_consumer, "Queue Consumer", "start_consumer() (app.py:85-97)", "Declares & subscribes to 3 durable queues:\n- ticket_events\n- invoice_events\n- notification_events\nCalls callback() for each message.")  
+    Component(event_dispatcher, "Event Dispatcher", "callback() (app.py:31-83)", "Parses JSON body, routes by event_type:\n- OrderPlacedEvent -> Ticket Handler\n- INVOICE_PRINT -> Invoice Handler\n- SHOWTIME_CHANGED -> Schedule Handler\n- REFUND_NOTIFICATION -> Refund Handler\nAcknowledges message after processing.")  
+    Component(ticket_handler, "Ticket Confirmation Handler", "callback() OrderPlacedEvent branch", "Logs: email, ticket_id, seat, movie_name.\nSimulates sending confirmation email.")  
+    Component(invoice_handler, "Invoice Print Handler", "callback() INVOICE_PRINT branch", "Logs: customer, booking_id, amount, date.\nSimulates sending to printer.")  
+    Component(schedule_handler, "Schedule Change Handler", "callback() SHOWTIME_CHANGED branch", "Logs: email, movie_title, old_time, new_time.\nSimulates apology email.")  
+    Component(refund_handler, "Refund Handler", "callback() REFUND_NOTIFICATION branch", "Logs: email, reason, seat, amount.\nSimulates refund processing & apology email.")  
+}  
+  
+' --- External actors ---  
+Rel(customer, frontend, "Uses")  
+Rel(admin, frontend, "Uses")  
+Rel(frontend, api_key_guard, "All API calls", "HTTP + peko-key header")  
+  
+' --- Gateway internal flow ---  
+Rel(api_key_guard, route_table, "Passes validated requests")  
+Rel(route_table, public_forwarder, "Public routes (GET movies, showtimes, rooms)")  
+Rel(route_table, auth_forwarder, "Protected routes (bookings, payments, admin CRUD)")  
+Rel(route_table, file_proxy, "POST /api/movies/upload")  
+Rel(route_table, poster_proxy, "GET /api/movies/posters/*")  
+  
+' --- Gateway to backend services ---  
+Rel(public_forwarder, movie_svc, "Forwards GET requests", "HTTP")  
+Rel(public_forwarder, booking_svc, "Forwards GET /api/showtimes/<id>/seats", "HTTP")  
+Rel(auth_forwarder, user_svc, "GET /api/auth/verify", "HTTP (token validation)")  
+Rel(auth_forwarder, movie_svc, "Admin CRUD (POST/PUT/DELETE)", "HTTP + X-User-Email/Role")  
+Rel(auth_forwarder, booking_svc, "POST/GET/DELETE bookings", "HTTP + X-User-Email/Role")  
+Rel(auth_forwarder, payment_svc, "POST payments, card CRUD", "HTTP + X-User-Email/Role")  
+Rel(auth_forwarder, user_svc, "GET/PUT /api/users (admin)", "HTTP + X-User-Email/Role")  
+Rel(file_proxy, movie_svc, "POST /api/movies/upload", "multipart/form-data")  
+Rel(poster_proxy, movie_svc, "GET /static/<filename>", "Streamed binary")  
+  
+' --- Notification Service ---  
+Rel(rmq_connector, rabbitmq, "AMQP connection", "amqp://admin:admin@host:5672")  
+Rel(queue_consumer, rmq_connector, "Uses connection")  
+Rel(rabbitmq, queue_consumer, "Delivers messages from 3 queues", "AMQP")  
+Rel(queue_consumer, event_dispatcher, "Invokes callback()")  
+Rel(event_dispatcher, ticket_handler, "OrderPlacedEvent")  
+Rel(event_dispatcher, invoice_handler, "INVOICE_PRINT")  
+Rel(event_dispatcher, schedule_handler, "SHOWTIME_CHANGED")  
+Rel(event_dispatcher, refund_handler, "REFUND_NOTIFICATION")  
+  
+@enduml

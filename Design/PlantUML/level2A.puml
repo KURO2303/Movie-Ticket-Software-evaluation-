@@ -1,0 +1,51 @@
+@startuml C4_Level2_Container_PartA  
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml  
+  
+LAYOUT_WITH_LEGEND()  
+SHOW_PERSON_OUTLINE()  
+  
+title Container Diagram (Part A) — Frontend, Services & Data Stores  
+  
+Person(customer, "Customer", "Browses movies, selects seats,\nbooks tickets, and pays online.")  
+Person(admin, "Admin", "Manages movies, showtimes,\nrooms, and user accounts.")  
+  
+System_Boundary(system, "Movie Ticket Booking System") {  
+  
+    Boundary(presentation, "Presentation Tier") {  
+        Container(frontend, "Frontend SPA", "React / Vite\nPort 5173", "Single-page application.\nMovie browsing, seat selection,\nbooking checkout, admin dashboard.")  
+    }  
+  
+    Boundary(api_tier, "API Tier") {  
+        Container(gateway, "API Gateway", "Python / Flask\nPort 5005", "Single entry point.\nValidates API key (peko-key header),\nverifies JWT via User Service,\nroutes to downstream services.")  
+    }  
+  
+    Boundary(service_tier, "Service Tier") {  
+        Container(movie_svc, "Movie Service", "Python / Flask\nPort 5001", "CRUD for movies, rooms, showtimes.\nValidates showtime duration.\nCascading delete with refund.")  
+        Container(booking_svc, "Booking Service", "Python / Flask\nPort 5002", "Grouped seat reservation\nwith atomic rollback.\nSeat availability & lazy init.")  
+        Container(payment_svc, "Payment Service", "Python / Flask\nPort 5003", "Processes payments,\nupdates booking status.\nManages saved card methods.")  
+        Container(user_svc, "User Service", "Python / Flask\nPort 5004", "Registration, login,\nUUID token verification.\nRole-based access control.")  
+    }  
+  
+    Boundary(data_tier, "Data Tier") {  
+        ContainerDb(movies_db, "Movies DB", "SQLite\nmovies.db", "movies, showtimes, rooms")  
+        ContainerDb(booking_db, "Booking DB", "SQLite\nbooking.db", "bookings, seats")  
+        ContainerDb(payments_db, "Payments DB", "SQLite\npayments.db", "cards")  
+        ContainerDb(users_db, "Users DB", "SQLite\nusers.db", "users, tokens")  
+    }  
+}  
+  
+Rel_D(customer, frontend, "Browses & books", "HTTPS")  
+Rel_D(admin, frontend, "Manages content", "HTTPS")  
+Rel_D(frontend, gateway, "All API calls", "HTTP/JSON\npeko-key header")  
+  
+Rel_D(gateway, movie_svc, "/api/movies\n/api/showtimes\n/api/rooms", "HTTP")  
+Rel_D(gateway, booking_svc, "/api/bookings\n/api/showtimes/*/seats", "HTTP")  
+Rel_D(gateway, payment_svc, "/api/payments\n/api/payment-methods", "HTTP")  
+Rel_D(gateway, user_svc, "/api/auth/*\n/api/users/*", "HTTP")  
+  
+Rel_D(movie_svc, movies_db, "R/W", "SQLite")  
+Rel_D(booking_svc, booking_db, "R/W", "SQLite")  
+Rel_D(payment_svc, payments_db, "R/W", "SQLite")  
+Rel_D(user_svc, users_db, "R/W", "SQLite")  
+  
+@enduml

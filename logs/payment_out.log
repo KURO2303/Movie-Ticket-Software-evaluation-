@@ -1,0 +1,14 @@
+Payment Service running on port 5003...
+ * Serving Flask app 'app'
+ * Debug mode: on
+Payment Service running on port 5003...
+Processing payment of 100000 VND for Booking #4 (User: user_13641c3e@test.com)
+[RabbitMQ] Sent invoice event for Booking #4
+
+----------------------------------------
+[INFO] PAYMENT SUCCESSFUL
+   Booking:  #4
+   To:       user_13641c3e@test.com
+   Amount:   100000 VND
+----------------------------------------
+

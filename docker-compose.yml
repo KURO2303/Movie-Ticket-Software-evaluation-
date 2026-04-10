@@ -1,0 +1,149 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python src/gateway/app.py
+    ports:
+      - "5005:5005"
+    environment:
+      - MOVIE_SERVICE_URL=http://movie_service:5001
+      - BOOKING_SERVICE_URL=http://booking_service:5002
+      - PAYMENT_SERVICE_URL=http://payment_service:5003
+      - USER_SERVICE_URL=http://user_service:5004
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      movie_service:
+        condition: service_started
+      booking_service:
+        condition: service_started
+      payment_service:
+        condition: service_started
+      user_service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  movie_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python src/movie/app.py
+    ports:
+      - "5001:5001"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - BOOKING_SERVICE_URL=http://booking_service:5002
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./logs:/app/logs
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  booking_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python src/booking/app.py
+    ports:
+      - "5002:5002"
+    environment:
+      - MOVIE_SERVICE_URL=http://movie_service:5001
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  payment_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python src/payment/app.py
+    ports:
+      - "5003:5003"
+    environment:
+      - BOOKING_SERVICE_URL=http://booking_service:5002
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  user_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python src/user/app.py
+    ports:
+      - "5004:5004"
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  notification_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python src/notification/app.py
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5005/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - gateway
+
+  db_seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: python seed_db.py
+    volumes:
+      - ./src:/app/src
+      - ./seed_db.py:/app/seed_db.py
+    depends_on:
+      - user_service
+      - movie_service

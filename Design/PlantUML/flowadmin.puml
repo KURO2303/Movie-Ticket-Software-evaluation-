@@ -1,0 +1,209 @@
+@startuml Admin_Management_Flow  
+  
+title Admin Management — Full Workflow  
+  
+actor "Admin" as A  
+participant "Frontend SPA\n(Admin Pages)" as FE  
+participant "API Gateway\n:5005" as GW  
+participant "User Service\n:5004" as US  
+participant "Movie Service\n:5001" as MS  
+participant "Booking Service\n:5002" as BS  
+queue "RabbitMQ" as MQ  
+participant "Notification\nService" as NS  
+  
+== Admin Login ==  
+  
+A -> FE : Navigate to /admin/login\nEnter email & password  
+FE -> GW : POST /api/auth/login\n{username, password}  
+GW -> US : Forward POST /api/auth/login  
+US -> US : Verify credentials\n(check_password_hash)  
+US --> GW : {token, email, role: "admin"}  
+GW --> FE : Login response  
+FE -> FE : Check role === "admin"\nStore in localStorage  
+FE --> A : Redirect to /admin/dashboard  
+  
+== Dashboard — View Stats ==  
+  
+A -> FE : Navigate to /admin/dashboard  
+FE -> GW : GET /api/movies  
+FE -> GW : GET /api/bookings  
+FE -> GW : GET /api/users  
+FE -> GW : GET /api/showtimes  
+GW -> US : Verify token (for protected routes)  
+US --> GW : Valid {email, role: admin}  
+GW -> MS : GET /api/movies  
+GW -> BS : GET /api/bookings  
+GW -> US : GET /api/users  
+GW -> MS : GET /api/showtimes  
+MS --> GW : Movies list  
+BS --> GW : Bookings list  
+US --> GW : Users list  
+MS --> GW : Showtimes list  
+GW --> FE : All data  
+FE -> FE : Calculate stats:\n- movie count\n- revenue = SUM(booking.amount)\n- customer count\n- recent 5 bookings  
+FE --> A : Display dashboard  
+  
+== Dashboard — Export Report ==  
+  
+A -> FE : Click "Export CSV" or "Export PDF"  
+FE -> FE : Cross-reference movies,\nshowtimes, bookings\nGenerate file client-side  
+FE --> A : Download revenue_report.csv/.pdf  
+  
+== Manage Movies — Create ==  
+  
+A -> FE : Open "Add Movie" modal\nFill: title, genre, duration,\nrelease_date, poster file  
+FE -> GW : POST /api/movies/upload\n(multipart/form-data)  
+GW -> US : Verify admin token  
+US --> GW : Valid  
+GW -> MS : Forward file upload  
+MS -> MS : Save file to /static/  
+MS --> GW : {filename: "poster.jpg"}  
+GW --> FE : Upload success  
+FE -> GW : POST /api/movies\n{title, genre, duration,\nrelease_date, image_url}  
+GW -> US : Verify admin token  
+US --> GW : Valid  
+GW -> MS : Forward POST /api/movies  
+MS -> MS : Insert into movies table  
+MS --> GW : {message, id}  
+GW --> FE : Movie created  
+FE --> A : Refresh movie list  
+  
+== Manage Movies — Delete (Cascading) ==  
+  
+A -> FE : Click "Delete" on movie\nConfirm dialog  
+FE -> GW : DELETE /api/movies/:id  
+GW -> US : Verify admin token  
+US --> GW : Valid  
+GW -> MS : Forward DELETE /api/movies/:id  
+MS -> MS : Get all showtimes for movie  
+  
+loop "For each showtime"  
+    MS -> BS : GET /api/bookings/showtime/:id/customers  
+    BS --> MS : List of bookings [{email, seat, amount}]  
+      
+    loop "For each booking"  
+        MS -> MQ : Publish REFUND_NOTIFICATION\n{email, seat, amount, reason}  
+        MQ -> NS : Deliver event  
+        NS -> NS : Log refund email  
+        MS -> BS : DELETE /api/bookings/:booking_id  
+        BS -> BS : Free seat, remove booking  
+        BS --> MS : Deleted  
+    end  
+end  
+  
+MS -> MS : Delete all showtimes\nDelete movie record  
+MS --> GW : "Movie deleted.\nRemoved X showtimes.\nRefunded Y bookings."  
+GW --> FE : Success  
+FE --> A : Refresh movie list  
+  
+== Manage Showtimes — Create ==  
+  
+A -> FE : Open "Add Showtime" modal\nSelect movie, room, date, time, price  
+FE -> FE : Auto-calculate end_time\n= start_time + movie.duration  
+FE -> GW : POST /api/showtimes\n{movie_id, room_id, start_time,\nend_time, price}  
+GW -> US : Verify admin token  
+US --> GW : Valid  
+GW -> MS : Forward POST /api/showtimes  
+MS -> MS : Validate duration >= movie length\nInsert into showtimes table  
+MS --> GW : {message, id}  
+GW --> FE : Showtime created  
+FE --> A : Refresh showtime list  
+  
+== Manage Showtimes — Update (Price/Room Changed) ==  
+  
+A -> FE : Edit showtime\nChange price or room  
+FE -> GW : PUT /api/showtimes/:id\n{start_time, end_time, price, room_id}  
+GW -> MS : Forward (admin verified)  
+MS -> MS : Detect price/room change  
+  
+MS -> BS : GET /api/bookings/showtime/:id/customers  
+BS --> MS : Affected bookings  
+  
+loop "For each booking"  
+    MS -> MQ : Publish REFUND_NOTIFICATION  
+    MS -> BS : DELETE /api/bookings/:booking_id  
+end  
+  
+MS -> MS : Update showtime record  
+MS --> GW : "Updated. X bookings refunded."  
+GW --> FE : Success  
+FE --> A : Refresh list  
+  
+== Manage Showtimes — Update (Time Changed Only) ==  
+  
+A -> FE : Edit showtime\nChange time only  
+FE -> GW : PUT /api/showtimes/:id  
+GW -> MS : Forward (admin verified)  
+MS -> MS : Detect time change only\n(no price/room change)  
+MS -> BS : GET /api/bookings/showtime/:id/customers  
+BS --> MS : Customer list  
+  
+loop "For each customer"  
+    MS -> MQ : Publish SHOWTIME_CHANGED\n{email, movie_title, old_time, new_time}  
+    MQ -> NS : Deliver event  
+    NS -> NS : Log schedule change notification  
+end  
+  
+MS -> MS : Update showtime record  
+MS --> GW : "Showtime updated"  
+GW --> FE : Success  
+FE --> A : Refresh list  
+  
+== Manage Showtimes — Delete ==  
+  
+A -> FE : Click "Delete" on showtime\nConfirm dialog  
+FE -> GW : DELETE /api/showtimes/:id  
+GW -> MS : Forward (admin verified)  
+  
+MS -> BS : GET /api/bookings/showtime/:id/customers  
+BS --> MS : Affected bookings  
+  
+loop "For each booking"  
+    MS -> MQ : Publish REFUND_NOTIFICATION  
+    MS -> BS : DELETE /api/bookings/:booking_id  
+end  
+  
+MS -> MS : Delete showtime record  
+MS --> GW : "Deleted. X bookings refunded."  
+GW --> FE : Success  
+FE --> A : Refresh list  
+  
+== Manage Bookings — View & Cancel ==  
+  
+A -> FE : Navigate to /admin/bookings/manage  
+FE -> GW : GET /api/bookings  
+GW -> BS : Forward (authenticated)  
+BS --> GW : All bookings list  
+GW --> FE : Bookings data  
+FE --> A : Display table\n(ID, email, showtime, seats, amount, status)  
+  
+A -> FE : Click "Cancel" on booking #X\nConfirm dialog  
+FE -> GW : DELETE /api/bookings/:id  
+GW -> BS : Forward  
+BS -> BS : Remove booking\nFree reserved seats  
+BS --> GW : "Deleted"  
+GW --> FE : Success  
+FE --> A : Refresh list  
+  
+== Manage Users — View & Update ==  
+  
+A -> FE : Navigate to /admin/users/manage  
+FE -> GW : GET /api/users  
+GW -> US : Verify admin token  
+US --> GW : Valid  
+GW -> US : Forward GET /api/users  
+US --> GW : All users list  
+GW --> FE : Users data  
+FE --> A : Display table\n(ID, email, role)  
+  
+A -> FE : Click "Edit" on user\nChange role and/or password  
+FE -> GW : PUT /api/users/:id\n{role, password?}  
+GW -> US : Verify admin token  
+US --> GW : Valid  
+GW -> US : Forward PUT /api/users/:id  
+US -> US : Update role\nHash & update password\n(if provided)  
+US --> GW : "User updated successfully"  
+GW --> FE : Success  
+FE --> A : Refresh list  
+  
+@enduml
