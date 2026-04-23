@@ -1,28 +1,26 @@
-[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on all addresses (0.0.0.0)
  * Running on http://127.0.0.1:5002
- * Running on http://172.18.0.8:5002
-[33mPress CTRL+C to quit[0m
- * Restarting with stat
+ * Running on http://10.75.105.57:5002
+Press CTRL+C to quit
+ * Restarting with watchdog (windowsapi)
  * Debugger is active!
- * Debugger PIN: 742-824-904
-127.0.0.1 - - [06/Feb/2026 18:58:15] "DELETE /api/internal/bookings/cancel_by_showtime/1 HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:15] "DELETE /api/internal/bookings/cancel_by_showtime/2 HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:16] "GET /api/showtimes/3/seats HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:16] "[35m[1mPOST /api/bookings HTTP/1.1[0m" 201 -
-127.0.0.1 - - [06/Feb/2026 18:58:17] "GET /api/showtimes/4/seats HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:17] "GET /api/showtimes/4/seats HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:17] "[35m[1mPOST /api/bookings HTTP/1.1[0m" 201 -
-127.0.0.1 - - [06/Feb/2026 18:58:17] "[35m[1mPOST /api/bookings HTTP/1.1[0m" 201 -
-127.0.0.1 - - [06/Feb/2026 18:58:18] "GET /api/showtimes/1/seats HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:18] "[31m[1mPOST /api/bookings HTTP/1.1[0m" 401 -
-127.0.0.1 - - [06/Feb/2026 18:58:18] "GET /api/bookings/my HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:18] "GET /api/bookings/1 HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:19] "PUT /api/bookings/1/status HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:19] "GET /api/showtimes/1/seats HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:19] "DELETE /api/bookings/1 HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:20] "GET /api/showtimes/5/seats HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:20] "[35m[1mPOST /api/bookings HTTP/1.1[0m" 201 -
-127.0.0.1 - - [06/Feb/2026 18:58:21] "GET /api/bookings/4 HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:21] "PUT /api/bookings/4/status HTTP/1.1" 200 -
-127.0.0.1 - - [06/Feb/2026 18:58:21] "[33mGET /api/bookings/999999 HTTP/1.1[0m" 404 -
+ * Debugger PIN: 704-994-521
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\requests\\api.py', reloading
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\requests\\sessions.py', reloading
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\requests\\adapters.py', reloading
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\urllib3\\connection.py', reloading
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\http\\client.py', reloading
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\urllib3\\util\\connection.py', reloading
+ * Detected change in 'C:\\Users\\DELL\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\socket.py', reloading
+ * Restarting with watchdog (windowsapi)
+ * Debugger is active!
+ * Debugger PIN: 704-994-521
+127.0.0.1 - - [17/Apr/2026 07:37:41] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:37:41] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:37:45] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:37:45] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:37:53] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:37:53] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:37:53] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2026 07:38:05] "GET /api/showtimes/None/seats HTTP/1.1" 200 -
