@@ -70,14 +70,15 @@ def register():
 
     hashed_password = generate_password_hash(password)
 
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         conn.execute('INSERT INTO users (email, password) VALUES (?, ?)', (email, hashed_password))
         conn.commit()
-        conn.close()
         return jsonify({"message": "User registered successfully"}), 201
     except sqlite3.IntegrityError:
         return jsonify({"error": "Email already exists"}), 400
+    finally:
+        conn.close()
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
